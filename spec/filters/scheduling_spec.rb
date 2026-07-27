@@ -36,6 +36,7 @@ describe LogStash::Filters::Translate do
         file.puts("a,1\nb,2\nc,3\n")
       end
       subject.register
+      allow(subject.lookup).to receive(:logger).and_return(double("LookupLogger").as_null_object)
     end
 
     after do
@@ -114,6 +115,53 @@ describe LogStash::Filters::Translate do
         actions.activate_quietly
         actions.assert_no_errors
       end
+
+      context "when replacement file is corrupt" do
+
+        it "logs a warning with the parse error but keeps processing with existing definitions" do
+          actions = RSpec::Sequencing
+            .run("translate") do
+              event_a = LogStash::Event.new("status" => "a" )
+              event_b = LogStash::Event.new("status" => "b" )
+              event_c = LogStash::Event.new("status" => "c" )
+              event_d = LogStash::Event.new("status" => "d" )
+
+              subject.multi_filter([event_a, event_b, event_c, event_d])
+
+              expect(event_a.get("translation")).to eq('1')
+              expect(event_b.get("translation")).to eq('2')
+              expect(event_c.get("translation")).to eq('3')
+              expect(event_d.get("translation")).to be_nil
+            end
+            .then("modify file with invalid CSV") do
+              dictionary_path.open("w") do |file|
+                file.puts("a,11\nb,12\n\"\xFF".dup.force_encoding("UTF-8")) # intentional broken utf-8
+              end
+            end
+            .then_after(2, "wait for dictionary reload attempt and ensure logs were emitted") do
+              wait_for { subject.lookup.logger }.to have_received(:warn).with(/continuing with old dictionary/, anything)
+            end
+            .then("translate again, ensuring we still use the old dictionary") do
+
+              event_a = LogStash::Event.new("status" => "a" )
+              event_b = LogStash::Event.new("status" => "b" )
+              event_c = LogStash::Event.new("status" => "c" )
+              event_d = LogStash::Event.new("status" => "d" )
+
+              subject.multi_filter([event_a, event_b, event_c, event_d])
+
+              expect(event_a.get("translation")).to eq('1')
+              expect(event_b.get("translation")).to eq('2')
+              expect(event_c.get("translation")).to eq('3')
+              expect(event_d.get("translation")).to be_nil
+            end
+            .then("stop") do
+              subject.close
+            end
+          actions.activate_quietly
+          actions.assert_no_errors
+        end
+      end
     end
 
     context "merge" do
@@ -184,6 +232,52 @@ describe LogStash::Filters::Translate do
           end
         actions.activate_quietly
         actions.assert_no_errors
+      end
+
+      context "when replacement file is corrupt" do
+
+        it "logs a warning with the parse error but keeps processing with existing definitions" do
+          actions = RSpec::Sequencing
+            .run("translate") do
+              event_a = LogStash::Event.new("status" => "a" )
+              event_b = LogStash::Event.new("status" => "b" )
+              event_c = LogStash::Event.new("status" => "c" )
+              event_d = LogStash::Event.new("status" => "d" )
+
+              subject.multi_filter([event_a, event_b, event_c, event_d])
+
+              expect(event_a.get("translation")).to eq('1')
+              expect(event_b.get("translation")).to eq('2')
+              expect(event_c.get("translation")).to eq('3')
+              expect(event_d.get("translation")).to be_nil
+            end
+            .then("modify file with invalid CSV") do
+              dictionary_path.open("w") do |file|
+                file.puts("a,11\nb,12\n\"\xFF".dup.force_encoding("UTF-8")) # intentional broken utf-8
+              end
+            end
+            .then_after(2, "wait for dictionary reload attempt and ensure logs were emitted") do
+              wait_for { subject.lookup.logger }.to have_received(:warn).with(/continuing with old dictionary/, anything)
+            end
+            .then("translate again, ensuring we still use the old dictionary") do
+              event_a = LogStash::Event.new("status" => "a" )
+              event_b = LogStash::Event.new("status" => "b" )
+              event_c = LogStash::Event.new("status" => "c" )
+              event_d = LogStash::Event.new("status" => "d" )
+
+              subject.multi_filter([event_a, event_b, event_c, event_d])
+
+              expect(event_a.get("translation")).to eq('1')
+              expect(event_b.get("translation")).to eq('2')
+              expect(event_c.get("translation")).to eq('3')
+              expect(event_d.get("translation")).to be_nil
+            end
+            .then("stop") do
+              subject.close
+            end
+          actions.activate_quietly
+          actions.assert_no_errors
+        end
       end
     end
   end
