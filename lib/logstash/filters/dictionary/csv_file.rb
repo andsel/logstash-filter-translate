@@ -6,9 +6,11 @@ module LogStash module Filters module Dictionary
 
     protected
 
-    def read_file_into_dictionary
+    def read_dictionary
+      return enum_for(:read_dictionary) unless block_given?
+
       ::CSV.open(@dictionary_path, 'r:bom|utf-8') do |csv|
-        csv.each { |k,v| @dictionary[k] = v }
+        csv.each { |k,v| yield(k,v) }
       end
     end
   end

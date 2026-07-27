@@ -13,20 +13,23 @@ module LogStash module Filters module Dictionary
       @yaml_load_strategy = file_type_args[:yaml_load_strategy]
     end
 
-    def read_file_into_dictionary
+    def read_dictionary
+      return enum_for(:read_dictionary) unless block_given?
+
       if @yaml_load_strategy == "one_shot"
         visitor = YamlVisitor.create
         parser = Psych::Parser.new(Psych::TreeBuilder.new)
         parser.code_point_limit = @yaml_code_point_limit
         # low level YAML read that tries to create as
         # few intermediate objects as possible
-        # this overwrites the value at key
         yaml_string = IO.read(@dictionary_path, :mode => 'r:bom|utf-8')
         parser.parse(yaml_string, @dictionary_path)
-        visitor.accept_with_dictionary(@dictionary, parser.handler.root)
+        temp_dictionary = {}
+        visitor.accept_with_dictionary(temp_dictionary, parser.handler.root)
+        temp_dictionary.each_pair { |key, value| yield(key, value) }
       else # stream parse it
         parser = StreamingYamlDictParser.new(@dictionary_path, @yaml_code_point_limit)
-        parser.each_pair {|key, value| @dictionary[key] = value }
+        parser.each_pair {|key, value| yield(key, value) }
       end
     end
   end
