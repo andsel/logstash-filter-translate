@@ -72,27 +72,50 @@ module LogStash module Filters module Dictionary
       # sub class specific initializer
     end
 
-    def read_file_into_dictionary
-      # defined in csv_file, yaml_file and json_file
+    ##
+    # read the dictionary from file into a new hash
+    # @yieldparam [String] key
+    # @yieldparam [Object] value
+    def read_dictionary
+      # defined in concrete implementation
+      fail NotImplementedError, "#{self.class} does not implement `read_dictionary`"
     end
 
     private
 
+    ##
+    # merges the parsed contents of the dictionary file into the current dictionary.
+    # This is an all-or-nothing operation.
+    # @return [void]
     def merge_dictionary
       @write_lock.lock
       begin
-        read_file_into_dictionary
+        changes = {}
+        read_dictionary do |key, value|
+          changes[key] = value unless value == @dictionary[key]
+        end
+        @dictionary.update(changes)
         @fetch_strategy.dictionary_updated
       ensure
         @write_lock.unlock
       end
     end
 
+    ##
+    # replaces the current dictionary with the parsed contents of the dictionary file,
+    # using the existing value objects where possible to limit memory growth.
+    # This is an all-or-nothing operation.
+    # @return [void]
     def replace_dictionary
       @write_lock.lock
       begin
-        @dictionary.clear
-        read_file_into_dictionary
+        replacement_dictionary = {}
+        read_dictionary do |key, value|
+          existing_value = @dictionary[key]
+          # if the value is equivalent to the existing value, use the existing value instead
+          replacement_dictionary[key] = (existing_value == value) ? existing_value : value
+        end
+        @dictionary.replace(replacement_dictionary)
         @fetch_strategy.dictionary_updated
       ensure
         @write_lock.unlock
