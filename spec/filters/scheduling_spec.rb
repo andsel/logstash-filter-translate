@@ -221,8 +221,7 @@ describe LogStash::Filters::Translate do
               wait(0.5).for { flag_event.get("translation") }.to eq("11")
             end
           end
-          # move temporarily to short window so that happens consistently
-          .then_after(0.8, "translate again, ensuring we use the merged dictionary") do
+          .then_after(2, "translate again, ensuring we use the merged dictionary") do
             event_a = LogStash::Event.new("status" => "a" )
             event_b = LogStash::Event.new("status" => "b" )
             event_c = LogStash::Event.new("status" => "c" )
