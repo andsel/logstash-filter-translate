@@ -214,7 +214,8 @@ describe LogStash::Filters::Translate do
               file.puts("a,11\nb,12\nd,14\n") # changes a+b, removes c, adds d
             end
           end
-          .then_after(2, "translate again, ensuring we use the merged dictionary") do
+          # move temporarily to short window so that happens consistently
+          .then_after(0.8, "translate again, ensuring we use the merged dictionary") do
             event_a = LogStash::Event.new("status" => "a" )
             event_b = LogStash::Event.new("status" => "b" )
             event_c = LogStash::Event.new("status" => "c" )
